@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专业番茄时钟</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <header id="main-header">
+            <h1 id="header-title">专注时间</h1>
+            <div class="status-dot" id="status-dot"></div>
+        </header>
+
+        <!-- 进度条 -->
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <!-- 时间显示 -->
+        <main class="timer-display">
+            <span id="time-display">25:00</span>
+        </main>
+
+        <!-- 控制区域 - 第一行：开始/暂停、重置、休息一下 -->
+        <section class="controls-row1">
+            <button id="start-btn" class="control-btn primary">开始</button>
+            <button id="pause-btn" class="control-btn primary" style="display:none;">暂停</button>
+            <button id="reset-btn" class="control-btn secondary">重置</button>
+            <button id="switch-mode-btn" class="control-btn secondary">休息一下</button>
+        </section>
+
+        <!-- 设定时间和时间输入框在同一行 -->
+        <section class="controls-row2">
+            <button id="set-time-btn" class="control-btn secondary">设定时间</button>
+            <input type="number" id="custom-time" placeholder="分钟" min="1" max="60">
+        </section>
+
+        <!-- 音效按钮单独最后一行 -->
+        <section class="settings-row">
+            <button id="tick-toggle" class="control-btn secondary">音效: 开</button>
+        </section>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "tomato_clock",
+  "version": "1.0.0",
+  "description": "专业的番茄时钟应用",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "electron",
+    "tomato-clock",
+    "productivity"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "latest"
+  }
+}
