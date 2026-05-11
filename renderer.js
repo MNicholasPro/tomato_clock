@@ -92,6 +92,8 @@ function playCompletion() {
 
 // 切换模式
 function switchMode() {
+    // 新增：恢复图标
+    if (window.electronAPI) window.electronAPI.setTrayAlert(false);
     clearInterval(timer);
     isWorking = !isWorking;
     
@@ -121,6 +123,8 @@ function switchMode() {
 
 // 开始计时
 function startTimer() {
+    // 新增：恢复图标
+    if (window.electronAPI) window.electronAPI.setTrayAlert(false);
     if (!isPaused) {
         // 从设定的时间开始
         remainingSeconds = totalSeconds;
@@ -168,6 +172,8 @@ function pauseTimer() {
 
 // 重置计时
 function resetTimer() {
+    // 新增：恢复图标
+    if (window.electronAPI) window.electronAPI.setTrayAlert(false);
     clearInterval(timer);
     remainingSeconds = totalSeconds;
     isPaused = false;
@@ -185,6 +191,8 @@ switchModeBtn.addEventListener('click', switchMode);
 
 // 修改设定时间的逻辑，增加保存功能
 setCustomTimeBtn.addEventListener('click', () => {
+    // 新增：恢复图标
+    if (window.electronAPI) window.electronAPI.setTrayAlert(false);
     const minutes = parseInt(customTimeInput.value);
     if (minutes > 0 && minutes <= 60) {
         totalSeconds = minutes * 60;
