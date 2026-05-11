@@ -112,6 +112,8 @@ function createTray() {
   }
 
   tray = new Tray(icon);
+// 【修复点 2】显式再次设置一次图标，确保初始状态生效
+  tray.setImage(icon);
 
   // --- 新增：监听来自渲染进程的红点状态切换 ---
   ipcMain.on('set-tray-alert', (event, isAlert) => {
@@ -125,14 +127,14 @@ function createTray() {
       const alertIcon = nativeImage.createFromPath(alertIconPath);
       if (!alertIcon.isEmpty()) {
         tray.setToolTip('时间到！请休息');
-        tray.setImageView(alertIcon);
+        tray.setImage(alertIcon);
       }
     } else {
       console.log('设置正常图标');
       const normalIcon = nativeImage.createFromPath(iconPath);
       if (!normalIcon.isEmpty()) {
         tray.setToolTip('我的应用');
-        tray.setImageView(normalIcon);
+        tray.setImage(normalIcon);
       }
     }
   });
