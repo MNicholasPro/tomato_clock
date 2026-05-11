@@ -1,20 +1,45 @@
 {
   "name": "tomato_clock",
-  "version": "1.0.0",
-  "description": "专业的番茄时钟应用",
+  "version": "1.0.1",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "electron-builder"
   },
-  "keywords": [
-    "electron",
-    "tomato-clock",
-    "productivity"
-  ],
-  "author": "",
-  "license": "ISC",
+  "build": {
+    "appId": "com.tomato_clock.app",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        "dmg"
+      ],
+      "icon": "assets/icon.icns"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 410,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 130,
+          "y": 150,
+          "type": "file"
+        }
+      ]
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
   "devDependencies": {
-    "electron": "latest"
+    "boolean": "^3.2.0",
+    "electron": "^42.0.1",
+    "glob": "^13.0.6",
+    "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
   }
 }
