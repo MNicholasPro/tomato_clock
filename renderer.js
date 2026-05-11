@@ -1,3 +1,4 @@
+// const { ipcRenderer } = require('electron'); // 注意：需要在 preload.js 中暴露或在 main.js 中配置 nodeIntegration
 const timeDisplay = document.getElementById('time-display');
 const startBtn = document.getElementById('start-btn');
 const pauseBtn = document.getElementById('pause-btn');
@@ -12,8 +13,12 @@ const progressBar = document.getElementById('progress-bar');
 const body = document.body;
 
 let timer = null;
-let totalSeconds = 25 * 60;
+// 从本地存储读取保存的时间，如果没有则默认 25*60
+// --- 修改点 1: 从 localStorage 读取保存的时间 ---
+const savedTime = localStorage.getItem('customTotalSeconds');
+let totalSeconds = savedTime ? parseInt(savedTime) : 25 * 60;
 let remainingSeconds = totalSeconds;
+
 let isPaused = false;
 let isWorking = true; // true = 专注, false = 休息
 let soundEnabled = true;
@@ -125,19 +130,26 @@ function startTimer() {
         remainingSeconds--;
         updateDisplay();
         
-        // 每秒播放滴答声
         if (remainingSeconds > 0) {
             playTick();
         }
         
         if (remainingSeconds <= 0) {
             clearInterval(timer);
+            
+            // 1. 优先同步状态到主进程 (红点图标)
+            if (window.electronAPI) {
+                window.electronAPI.setTrayAlert(true);
+            }
+            
             playCompletion();
             remainingSeconds = 0;
             updateDisplay();
             
-            // 通知用户（简单弹窗）
-            alert(isWorking ? '专注时间结束！休息一下吧。' : '休息结束！回到专注状态。');
+            // 2. 使用 setTimeout 稍微延迟 alert，避免阻塞 IPC 通信
+            setTimeout(() => {
+                alert(isWorking ? '专注时间结束！休息一下吧。' : '休息结束！回到专注状态。');
+            }, 100);
         }
     }, 1000);
     
@@ -171,11 +183,14 @@ pauseBtn.addEventListener('click', pauseTimer);
 resetBtn.addEventListener('click', resetTimer);
 switchModeBtn.addEventListener('click', switchMode);
 
-// 设定自定义时间
+// 修改设定时间的逻辑，增加保存功能
 setCustomTimeBtn.addEventListener('click', () => {
     const minutes = parseInt(customTimeInput.value);
     if (minutes > 0 && minutes <= 60) {
         totalSeconds = minutes * 60;
+        // --- 修改点 3: 保存设定时间到本地存储 ---
+        localStorage.setItem('customTotalSeconds', totalSeconds);
+        
         remainingSeconds = totalSeconds;
         updateDisplay();
         progressBar.style.width = '0%';
@@ -190,3 +205,4 @@ tickToggleBtn.addEventListener('click', () => {
 
 // 初始化
 updateDisplay();
+

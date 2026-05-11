@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, ipcMain } = require('electron');
 const path = require('path');
 
 // 1. 必须在 app ready 之前设置，尤其是在打包后
@@ -16,7 +16,7 @@ function createWindow() {
     width: 800,
     height: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'renderer.js'),
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false, 
       contextIsolation: true 
     }
@@ -93,8 +93,10 @@ function createTray() {
   // 防止重复创建tray
   if (tray) return;
 
-  // 优先使用 .icns 格式图标
-  let iconPath = path.join(__dirname, 'assets/icon.icns');
+// 定义图标路径
+  let iconPath = path.join(__dirname, 'assets/icon.png'); // 默认图标
+  const alertIconPath = path.join(__dirname, 'assets/icon-alert.png'); // 带红点的图标
+  
   let icon = nativeImage.createFromPath(iconPath);
   
   // 如果 .icns 不存在，回退到 .png
@@ -110,6 +112,30 @@ function createTray() {
   }
 
   tray = new Tray(icon);
+
+  // --- 新增：监听来自渲染进程的红点状态切换 ---
+  ipcMain.on('set-tray-alert', (event, isAlert) => {
+    if (!tray) {
+        console.error('tray 未初始化，无法设置红点状态');
+        return;
+    }
+    
+    if (isAlert) {
+      console.log('设置红点图标');
+      const alertIcon = nativeImage.createFromPath(alertIconPath);
+      if (!alertIcon.isEmpty()) {
+        tray.setToolTip('时间到！请休息');
+        tray.setImageView(alertIcon);
+      }
+    } else {
+      console.log('设置正常图标');
+      const normalIcon = nativeImage.createFromPath(iconPath);
+      if (!normalIcon.isEmpty()) {
+        tray.setToolTip('我的应用');
+        tray.setImageView(normalIcon);
+      }
+    }
+  });
 
   const contextMenu = Menu.buildFromTemplate([
     { 
