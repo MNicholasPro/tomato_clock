@@ -1,5 +1,4 @@
 const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, ipcMain } = require('electron');
-const { exec } = require('child_process');
 const path = require('path');
 
 // 1. 仅在 Windows 上设置应用 ID，macOS 使用 Bundle ID（在 package.json 中配置）
@@ -46,13 +45,10 @@ function createWindow() {
   });
 }
 
-// --- 系统消息通知实现 (增强版) ---
+// --- 系统消息通知实现 (优化版) ---
 function checkNotificationPermission() {
   if (!Notification.isSupported()) return 'unsupported';
-  if (Notification.permission) {
-    return Notification.permission; // 返回 'granted'/'denied'/'default'
-  }
-  return 'unknown';
+  return Notification.permission || 'default'; // Electron 主进程可能返回 undefined
 }
 
 function sendNotification(title, bodyText) {
@@ -62,17 +58,39 @@ function sendNotification(title, bodyText) {
     console.log('内容:', bodyText);
     console.log('当前平台:', process.platform);
 
-    if (Notification.isSupported()) {
-      console.log('✅ Notification 支持，使用原生通知');
-      console.log('Notification.permission:', Notification.permission);
+    const permission = checkNotificationPermission();
+    console.log('通知权限状态:', permission);
 
-      // 【关键修复】Electron 主进程中的 Notification 没有 requestPermission() 方法
-      // 直接调用 doShowNotification，macOS 会自动处理权限请求
-      doShowNotification(title, bodyText);
+    // 检查权限状态
+    if (permission === 'denied') {
+      console.warn('⚠️ 通知权限已被拒绝');
+      console.warn('请在 系统设置 > 通知 中为 TomatoClock 开启通知权限');
+      fallbackToOsascript(title, bodyText);
+      return;
+    }
+
+    if (process.platform === 'darwin' && permission !== 'granted') {
+      console.log('⚠️ macOS 上通知权限未知或未确认，使用 osascript fallback');
+      fallbackToOsascript(title, bodyText);
+      return;
+    }
+
+    if (Notification.isSupported()) {
+      console.log('✅ 使用 Electron 原生通知');
+      
+      // 先尝试原生通知
+      const nativeSuccess = doShowNotification(title, bodyText);
+      
+      // 如果原生通知可能失败，尝试fallback
+      if (!nativeSuccess && process.platform === 'darwin') {
+        console.log('🔄 原生通知可能未显示，尝试 fallback');
+        fallbackToOsascript(title, bodyText);
+      }
     } else {
+      console.log('📢 Notification 不支持，使用 fallback');
       fallbackToOsascript(title, bodyText);
     }
-    console.log('========== 通知发送完成 ==========\n');
+    console.log('========== 通知发送流程结束 ==========\n');
   } catch (err) {
     console.error('❌ 发送通知异常:', err);
     fallbackToOsascript(title, bodyText);
@@ -80,53 +98,169 @@ function sendNotification(title, bodyText) {
 }
 
 function fallbackToOsascript(title, bodyText) {
-  if (process.platform === 'darwin') {
-    try {
-      console.log('📢 fallback: 使用 macOS osascript 发送通知...');
-      const appleScript = `display notification "${bodyText}" with title "${title}"`;
-      const child = exec(`osascript -e '${appleScript}'`);
-      child.on('close', (code) => {
-        if (code === 0) {
-          console.log('✅ macOS 系统通知已发送成功');
-        } else {
-          console.error('❌ osascript 通知发送失败，退出码:', code);
-          shell.beep();
-        }
-      });
-    } catch (err) {
-      console.error('❌ fallback 通知发送异常:', err.message);
-      shell.beep();
-    }
+  if (process.platform !== 'darwin') {
+    console.log('⚠️ fallback 仅支持 macOS');
+    return;
+  }
+
+  try {
+    console.log('📢 使用 macOS osascript 发送通知...');
+    
+    // 【关键修复】正确转义特殊字符，防止命令注入和解析错误
+    const escapedTitle = escapeAppleScriptString(title || '番茄时钟');
+    const escapedBody = escapeAppleScriptString(bodyText || '时间到！');
+    
+    console.log('转义后标题:', escapedTitle);
+    console.log('转义后内容:', escapedBody);
+
+    // 构建AppleScript命令
+    const appleScriptCode = `display notification "${escapedBody}" with title "${escapedTitle}" sound name "default"`;
+    
+    console.log('AppleScript代码:', appleScriptCode);
+    
+    // 使用spawn代替exec，更好地处理参数
+    const { spawn } = require('child_process');
+    const child = spawn('osascript', ['-e', appleScriptCode]);
+    
+    let stdout = '';
+    let stderr = '';
+    
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    child.on('close', (code) => {
+      if (code === 0) {
+        console.log('✅ osascript 通知发送成功');
+        if (stdout) console.log('📝 osascript 输出:', stdout.trim());
+      } else {
+        console.error('❌ osascript 通知发送失败，退出码:', code);
+        if (stderr) console.error('❌ osascript 错误:', stderr.trim());
+        console.error('💡 可能需要在系统设置中允许 "终端" 发送通知');
+        // 尝试另一种方法
+        fallbackToTerminalNotifier(title, bodyText);
+      }
+    });
+    
+    child.on('error', (err) => {
+      console.error('❌ osascript 执行错误:', err.message);
+      fallbackToTerminalNotifier(title, bodyText);
+    });
+  } catch (err) {
+    console.error('❌ fallback 通知发送异常:', err.message);
+    fallbackToTerminalNotifier(title, bodyText);
   }
 }
 
-function doShowNotification(title, bodyText) {
-  notification = new Notification({
-    title: title || '应用通知',
-    body: bodyText || '这是一条来自应用的系统消息！',
-    silent: false
-  });
-
-  notification.on('click', () => {
-    console.log('📍 通知被点击');
-    if (mainWindow) {
-      mainWindow.show();
+/**
+ * 备用方案：使用terminal-notifier（如果安装的话）
+ */
+function fallbackToTerminalNotifier(title, bodyText) {
+  console.log('🔄 尝试使用 terminal-notifier...');
+  const { spawn } = require('child_process');
+  const child = spawn('which', ['terminal-notifier']);
+  
+  child.stdout.on('data', (data) => {
+    const path = data.toString().trim();
+    if (path) {
+      console.log('✅ 找到 terminal-notifier:', path);
+      const notifier = spawn('terminal-notifier', [
+        '-title', title || '番茄时钟',
+        '-message', bodyText || '时间到！',
+        '-sound', 'default'
+      ]);
+      
+      notifier.on('close', (code) => {
+        if (code === 0) {
+          console.log('✅ terminal-notifier 通知发送成功');
+        } else {
+          console.error('❌ terminal-notifier 发送失败');
+          shell.beep();
+        }
+      });
+    } else {
+      console.log('⚠️ terminal-notifier 未安装');
+      shell.beep();
     }
   });
+  
+  child.on('error', () => {
+    console.log('⚠️ 无法检查 terminal-notifier');
+    shell.beep();
+  });
+}
 
-  notification.show();
-  console.log('✅ 原生通知已显示');
+/**
+ * 转义 AppleScript 字符串中的特殊字符
+ */
+function escapeAppleScriptString(str) {
+  if (!str) return '';
+  // 正确转义：先转义反斜杠，再转义双引号、换行和回车
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n');
+}
+
+function doShowNotification(title, bodyText) {
+  try {
+    notification = new Notification({
+      title: title || '番茄时钟',
+      body: bodyText || '时间到！',
+      silent: false,
+      // 添加 sound 参数（某些Electron版本支持）
+      sound: 'default'
+    });
+
+    notification.on('click', () => {
+      console.log('📍 通知被点击');
+      if (mainWindow) {
+        mainWindow.show();
+      }
+    });
+
+    notification.on('show', () => {
+      console.log('✅ 原生通知已成功显示');
+    });
+
+    notification.on('error', (err) => {
+      console.error('❌ 原生通知显示失败:', err);
+      // 尝试 fallback
+      fallbackToOsascript(title, bodyText);
+    });
+
+    notification.show();
+    return true;
+  } catch (err) {
+    console.error('❌ 创建原生通知失败:', err);
+    return false;
+  }
 }
 
 // 【确保此处的字符串与 preload.js 中的 send 参数一致】
 ipcMain.on('trigger-completion-notification', (event, data) => {
   console.log('\n📨 【IPC】收到 trigger-completion-notification 消息');
-  console.log('数据:', data);
-  if (data && data.title && data.message) {
-    sendNotification(data.title, data.message);
-  } else {
-    console.error('❌ 数据格式错误:', data);
+  console.log('数据类型:', typeof data);
+  console.log('数据内容:', JSON.stringify(data, null, 2));
+  
+  // 验证数据
+  if (!data) {
+    console.error('❌ 数据为空');
+    return;
   }
+  
+  const title = data.title || data.Title || '番茄时钟';
+  const message = data.message || data.body || data.Message || '时间到！';
+  
+  console.log('提取的标题:', title);
+  console.log('提取的消息:', message);
+  
+  sendNotification(title, message);
 });
 
 
@@ -246,15 +380,16 @@ app.whenReady().then(() => {
 
 // 主动请求通知权限（主进程中不能调用 requestPermission，直接显示测试通知触发权限请求）
 function requestNotificationPermission() {
-  if (Notification.permission === 'granted') {
+  const permission = Notification.permission || 'default';
+  if (permission === 'granted') {
     console.log('✅ 通知权限已授予');
-  } else if (Notification.permission === 'denied') {
+  } else if (permission === 'denied') {
     console.warn('❌ 通知权限已被拒绝');
     console.warn('请手动在 系统设置 > 通知 中为 TomatoClock 开启通知');
   } else {
-    // 【关键修复】Electron 主进程中没有 requestPermission() 方法
-    // 在 macOS 上，直接显示通知会自动触发系统权限请求弹窗
-    console.log('📢 主进程中无法调用 requestPermission，将在首次发送通知时自动触发权限请求');
+    // Electron 主进程没有 requestPermission() 方法。
+    // macOS上，首次创建通知将触发系统权限请求弹窗。
+    console.log('📢 通知权限尚未确认，将在首次发送通知时自动触发系统请求');
   }
 }
 

@@ -32,6 +32,25 @@ if ('Notification' in window && Notification.permission === 'default') {
   });
 }
 
+function notifyWithBrowserAPI(title, message) {
+  if (!('Notification' in window)) {
+    console.warn('浏览器通知 API 不可用');
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body: message, silent: false });
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then((permission) => {
+      if (permission === 'granted') {
+        new Notification(title, { body: message, silent: false });
+      }
+    }).catch(err => {
+      console.warn('通知权限请求失败:', err);
+    });
+  }
+}
+
 // 进度条动画
 function updateProgress() {
     const progress = (totalSeconds - remainingSeconds) / totalSeconds;
@@ -149,12 +168,12 @@ function startTimer() {
             clearInterval(timer);
             console.log('⏰ 计时完成！window.electronAPI:', window.electronAPI ? '存在' : '不存在');
 
-            if (window.electronAPI) {
+            const title = isWorking ? '🍅 专注结束' : '☕ 休息结束';
+            const message = isWorking ? '专注时间结束！休息一下吧。' : '休息结束！回到专注状态。';
+
+            if (window.electronAPI && typeof window.electronAPI.triggerCompletionNotification === 'function') {
                 window.electronAPI.setTrayAlert(true);
                 console.log('✅ 设置红点图标成功');
-
-                const title = isWorking ? '🍅 专注结束' : '☕ 休息结束';
-                const message = isWorking ? '专注时间结束！休息一下吧。' : '休息结束！回到专注状态。';
 
                 console.log('📢 发送通知:', { title, message });
                 // 触发通知
@@ -164,7 +183,8 @@ function startTimer() {
                 });
                 console.log('✅ IPC 通知已发送');
             } else {
-                console.error('❌ window.electronAPI 未定义');
+                console.warn('⚠️ window.electronAPI 未定义，回退到浏览器通知 API');
+                notifyWithBrowserAPI(title, message);
             }
 
             playCompletion();
