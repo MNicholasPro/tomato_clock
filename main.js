@@ -69,17 +69,19 @@ function sendNotification(title, bodyText) {
       return;
     }
 
-    if (process.platform === 'darwin' && permission !== 'granted') {
-      console.log('⚠️ macOS 上通知权限未知或未确认，使用 osascript fallback');
-      fallbackToOsascript(title, bodyText);
-      return;
-    }
-
     if (Notification.isSupported()) {
       console.log('✅ 使用 Electron 原生通知');
       
       // 先尝试原生通知
       const nativeSuccess = doShowNotification(title, bodyText);
+
+      if (nativeSuccess) {
+        console.log('✅ 原生通知成功');
+        console.log('========== 通知发送流程结束 ==========\n');
+        return;
+      } else {
+        console.log('⚠️ 原生通知失败');
+      }
       
       // 如果原生通知可能失败，尝试fallback
       if (!nativeSuccess && process.platform === 'darwin') {
@@ -90,6 +92,12 @@ function sendNotification(title, bodyText) {
       console.log('📢 Notification 不支持，使用 fallback');
       fallbackToOsascript(title, bodyText);
     }
+
+    if (process.platform === 'darwin' && permission !== 'granted') {
+      console.log('⚠️ macOS 上通知权限未知或未确认，使用 osascript fallback');
+      fallbackToOsascript(title, bodyText);
+    }
+
     console.log('========== 通知发送流程结束 ==========\n');
   } catch (err) {
     console.error('❌ 发送通知异常:', err);
