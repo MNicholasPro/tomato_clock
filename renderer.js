@@ -1,3 +1,4 @@
+// const { ipcRenderer } = require('electron'); // 注意：需要在 preload.js 中暴露或在 main.js 中配置 nodeIntegration
 const timeDisplay = document.getElementById('time-display');
 const startBtn = document.getElementById('start-btn');
 const pauseBtn = document.getElementById('pause-btn');
@@ -10,13 +11,45 @@ const headerTitle = document.getElementById('header-title');
 const statusDot = document.getElementById('status-dot');
 const progressBar = document.getElementById('progress-bar');
 const body = document.body;
+const timeModeBtn = document.getElementById('time-mode-btn');
 
 let timer = null;
-let totalSeconds = 25 * 60;
+// 从本地存储读取保存的时间，如果没有则默认 25*60
+// --- 修改点 1: 从 localStorage 读取保存的时间 ---
+const savedTime = localStorage.getItem('customTotalSeconds');
+let totalSeconds = savedTime ? parseInt(savedTime) : 25 * 60;
 let remainingSeconds = totalSeconds;
+
 let isPaused = false;
 let isWorking = true; // true = 专注, false = 休息
 let soundEnabled = true;
+let timeMode = 'minutes'; // 'minutes' 或 'seconds'
+
+// 页面加载时请求通知权限（仅渲染进程支持）
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission().catch(err => {
+    console.warn('权限请求出错:', err);
+  });
+}
+
+function notifyWithBrowserAPI(title, message) {
+  if (!('Notification' in window)) {
+    console.warn('浏览器通知 API 不可用');
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body: message, silent: false });
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then((permission) => {
+      if (permission === 'granted') {
+        new Notification(title, { body: message, silent: false });
+      }
+    }).catch(err => {
+      console.warn('通知权限请求失败:', err);
+    });
+  }
+}
 
 // 进度条动画
 function updateProgress() {
@@ -87,6 +120,8 @@ function playCompletion() {
 
 // 切换模式
 function switchMode() {
+    // 新增：恢复图标
+    if (window.electronAPI) window.electronAPI.setTrayAlert(false);
     clearInterval(timer);
     isWorking = !isWorking;
     
@@ -116,31 +151,49 @@ function switchMode() {
 
 // 开始计时
 function startTimer() {
+    if (window.electronAPI) window.electronAPI.setTrayAlert(false);
     if (!isPaused) {
-        // 从设定的时间开始
         remainingSeconds = totalSeconds;
     }
-    
+
     timer = setInterval(() => {
         remainingSeconds--;
         updateDisplay();
-        
-        // 每秒播放滴答声
+
         if (remainingSeconds > 0) {
             playTick();
         }
-        
+
         if (remainingSeconds <= 0) {
             clearInterval(timer);
+            console.log('⏰ 计时完成！window.electronAPI:', window.electronAPI ? '存在' : '不存在');
+
+            const title = isWorking ? '🍅 专注结束' : '☕ 休息结束';
+            const message = isWorking ? '专注时间结束！休息一下吧。' : '休息结束！回到专注状态。';
+
+            if (window.electronAPI && typeof window.electronAPI.triggerCompletionNotification === 'function') {
+                window.electronAPI.setTrayAlert(true);
+                console.log('✅ 设置红点图标成功');
+
+                console.log('📢 发送通知:', { title, message });
+                // 触发通知
+                window.electronAPI.triggerCompletionNotification({
+                    title: title,
+                    message: message
+                });
+                console.log('✅ IPC 通知已发送');
+            } else {
+                console.warn('⚠️ window.electronAPI 未定义，回退到浏览器通知 API');
+                notifyWithBrowserAPI(title, message);
+            }
+
             playCompletion();
             remainingSeconds = 0;
             updateDisplay();
-            
-            // 通知用户（简单弹窗）
-            alert(isWorking ? '专注时间结束！休息一下吧。' : '休息结束！回到专注状态。');
         }
     }, 1000);
-    
+
+    // 【修复】将 'arg' 改为 'none'，否则按钮不会消失
     startBtn.style.display = 'none';
     pauseBtn.style.display = 'block';
     isPaused = false;
@@ -156,6 +209,8 @@ function pauseTimer() {
 
 // 重置计时
 function resetTimer() {
+    // 新增：恢复图标
+    if (window.electronAPI) window.electronAPI.setTrayAlert(false);
     clearInterval(timer);
     remainingSeconds = totalSeconds;
     isPaused = false;
@@ -171,14 +226,30 @@ pauseBtn.addEventListener('click', pauseTimer);
 resetBtn.addEventListener('click', resetTimer);
 switchModeBtn.addEventListener('click', switchMode);
 
-// 设定自定义时间
+// 修改设定时间的逻辑，增加保存功能
 setCustomTimeBtn.addEventListener('click', () => {
-    const minutes = parseInt(customTimeInput.value);
-    if (minutes > 0 && minutes <= 60) {
-        totalSeconds = minutes * 60;
-        remainingSeconds = totalSeconds;
-        updateDisplay();
-        progressBar.style.width = '0%';
+    // 新增：恢复图标
+    if (window.electronAPI) window.electronAPI.setTrayAlert(false);
+    const inputValue = parseInt(customTimeInput.value);
+    
+    if (timeMode === 'minutes') {
+        // 分钟模式
+        if (inputValue > 0 && inputValue <= 60) {
+            totalSeconds = inputValue * 60;
+            localStorage.setItem('customTotalSeconds', totalSeconds);
+            remainingSeconds = totalSeconds;
+            updateDisplay();
+            progressBar.style.width = '0%';
+        }
+    } else {
+        // 秒钟模式
+        if (inputValue > 0 && inputValue <= 3600) {
+            totalSeconds = inputValue;
+            localStorage.setItem('customTotalSeconds', totalSeconds);
+            remainingSeconds = totalSeconds;
+            updateDisplay();
+            progressBar.style.width = '0%';
+        }
     }
 });
 
@@ -186,6 +257,30 @@ setCustomTimeBtn.addEventListener('click', () => {
 tickToggleBtn.addEventListener('click', () => {
     soundEnabled = !soundEnabled;
     tickToggleBtn.textContent = soundEnabled ? '音效: 开' : '音效: 关';
+});
+
+// 切换时间模式（分钟/秒钟）
+timeModeBtn.addEventListener('click', () => {
+    if (timeMode === 'minutes') {
+        timeMode = 'seconds';
+        timeModeBtn.textContent = '秒钟';
+        // 将当前时间转换为秒数显示
+        customTimeInput.placeholder = '秒数';
+        customTimeInput.max = '3600';
+        // 更新显示当前值
+        if (customTimeInput.value) {
+            customTimeInput.value = totalSeconds;
+        }
+    } else {
+        timeMode = 'minutes';
+        timeModeBtn.textContent = '分钟';
+        customTimeInput.placeholder = '分钟';
+        customTimeInput.max = '60';
+        // 更新显示当前值
+        if (customTimeInput.value) {
+            customTimeInput.value = Math.floor(totalSeconds / 60);
+        }
+    }
 });
 
 // 初始化
