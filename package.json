@@ -16,7 +16,9 @@
   "build": {
     "appId": "com.aiassistant.tomatoclock",
     "mac": { 
-      "category": "public.app-category.productivity","icon": "assets/icon.icns","target": ["dmg"] 
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "target": ["dmg"] 
     },
     "publish": null
   }
