@@ -4,6 +4,7 @@
   "description": "专业番茄时钟 - macOS 状态栏应用",
   "author": "TomatoClock",
   "main": "main.js",
+  "license": "MIT",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder"
@@ -22,7 +23,9 @@
       "extendInfo": {
         "NSUserNotificationAlertStyle": "alert",
         "NSRequiresIPhoneOS": false,
-        "NSHumanReadableCopyright": "© 2024 TomatoClock. All rights reserved."
+        "NSHumanReadableCopyright": "© 2024 TomatoClock. All rights reserved.",
+        "NSUserNotificationUsageDescription": "番茄钟需要发送通知来提醒您工作和休息时间",
+        "NSNotificationsUsageDescription": "番茄钟需要发送通知来提醒您工作和休息时间"
       }
     },
     "dmg": {

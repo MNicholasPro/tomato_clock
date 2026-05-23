@@ -66,22 +66,9 @@ function sendNotification(title, bodyText) {
       console.log('✅ Notification 支持，使用原生通知');
       console.log('Notification.permission:', Notification.permission);
 
-      if (Notification.permission === 'granted') {
-        doShowNotification(title, bodyText);
-      } else if (Notification.permission === 'default') {
-        Notification.requestPermission((result) => {
-          console.log('权限请求结果:', result);
-          if (result === 'granted') {
-            doShowNotification(title, bodyText);
-          } else {
-            console.error('❌ 通知权限被拒绝');
-            fallbackToOsascript(title, bodyText);
-          }
-        });
-      } else {
-        console.error('❌ 通知权限已被拒绝');
-        fallbackToOsascript(title, bodyText);
-      }
+      // 【关键修复】Electron 主进程中的 Notification 没有 requestPermission() 方法
+      // 直接调用 doShowNotification，macOS 会自动处理权限请求
+      doShowNotification(title, bodyText);
     } else {
       fallbackToOsascript(title, bodyText);
     }
@@ -250,10 +237,26 @@ app.whenReady().then(() => {
   console.log('Notification.permission:', Notification.permission);
   if (Notification.isSupported()) {
     console.log('通知功能支持');
+    // 主动请求通知权限（macOS 10.14+ 需要在 Info.plist 中声明权限描述）
+    requestNotificationPermission();
   } else {
     console.warn('当前系统不支持原生通知');
   }
 });
+
+// 主动请求通知权限（主进程中不能调用 requestPermission，直接显示测试通知触发权限请求）
+function requestNotificationPermission() {
+  if (Notification.permission === 'granted') {
+    console.log('✅ 通知权限已授予');
+  } else if (Notification.permission === 'denied') {
+    console.warn('❌ 通知权限已被拒绝');
+    console.warn('请手动在 系统设置 > 通知 中为 TomatoClock 开启通知');
+  } else {
+    // 【关键修复】Electron 主进程中没有 requestPermission() 方法
+    // 在 macOS 上，直接显示通知会自动触发系统权限请求弹窗
+    console.log('📢 主进程中无法调用 requestPermission，将在首次发送通知时自动触发权限请求');
+  }
+}
 
 // 所有窗口关闭时的逻辑（优化macOS行为）
 app.on('window-all-closed', () => {

@@ -11,6 +11,7 @@ const headerTitle = document.getElementById('header-title');
 const statusDot = document.getElementById('status-dot');
 const progressBar = document.getElementById('progress-bar');
 const body = document.body;
+const timeModeBtn = document.getElementById('time-mode-btn');
 
 let timer = null;
 // 从本地存储读取保存的时间，如果没有则默认 25*60
@@ -22,6 +23,7 @@ let remainingSeconds = totalSeconds;
 let isPaused = false;
 let isWorking = true; // true = 专注, false = 休息
 let soundEnabled = true;
+let timeMode = 'minutes'; // 'minutes' 或 'seconds'
 
 // 页面加载时请求通知权限（仅渲染进程支持）
 if ('Notification' in window && Notification.permission === 'default') {
@@ -208,15 +210,26 @@ switchModeBtn.addEventListener('click', switchMode);
 setCustomTimeBtn.addEventListener('click', () => {
     // 新增：恢复图标
     if (window.electronAPI) window.electronAPI.setTrayAlert(false);
-    const minutes = parseInt(customTimeInput.value);
-    if (minutes > 0 && minutes <= 60) {
-        totalSeconds = minutes * 60;
-        // --- 修改点 3: 保存设定时间到本地存储 ---
-        localStorage.setItem('customTotalSeconds', totalSeconds);
-        
-        remainingSeconds = totalSeconds;
-        updateDisplay();
-        progressBar.style.width = '0%';
+    const inputValue = parseInt(customTimeInput.value);
+    
+    if (timeMode === 'minutes') {
+        // 分钟模式
+        if (inputValue > 0 && inputValue <= 60) {
+            totalSeconds = inputValue * 60;
+            localStorage.setItem('customTotalSeconds', totalSeconds);
+            remainingSeconds = totalSeconds;
+            updateDisplay();
+            progressBar.style.width = '0%';
+        }
+    } else {
+        // 秒钟模式
+        if (inputValue > 0 && inputValue <= 3600) {
+            totalSeconds = inputValue;
+            localStorage.setItem('customTotalSeconds', totalSeconds);
+            remainingSeconds = totalSeconds;
+            updateDisplay();
+            progressBar.style.width = '0%';
+        }
     }
 });
 
@@ -226,6 +239,29 @@ tickToggleBtn.addEventListener('click', () => {
     tickToggleBtn.textContent = soundEnabled ? '音效: 开' : '音效: 关';
 });
 
+// 切换时间模式（分钟/秒钟）
+timeModeBtn.addEventListener('click', () => {
+    if (timeMode === 'minutes') {
+        timeMode = 'seconds';
+        timeModeBtn.textContent = '秒钟';
+        // 将当前时间转换为秒数显示
+        customTimeInput.placeholder = '秒数';
+        customTimeInput.max = '3600';
+        // 更新显示当前值
+        if (customTimeInput.value) {
+            customTimeInput.value = totalSeconds;
+        }
+    } else {
+        timeMode = 'minutes';
+        timeModeBtn.textContent = '分钟';
+        customTimeInput.placeholder = '分钟';
+        customTimeInput.max = '60';
+        // 更新显示当前值
+        if (customTimeInput.value) {
+            customTimeInput.value = Math.floor(totalSeconds / 60);
+        }
+    }
+});
+
 // 初始化
 updateDisplay();
-
