@@ -23,6 +23,13 @@ let isPaused = false;
 let isWorking = true; // true = 专注, false = 休息
 let soundEnabled = true;
 
+// 页面加载时请求通知权限（仅渲染进程支持）
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission().catch(err => {
+    console.warn('权限请求出错:', err);
+  });
+}
+
 // 进度条动画
 function updateProgress() {
     const progress = (totalSeconds - remainingSeconds) / totalSeconds;
@@ -123,40 +130,48 @@ function switchMode() {
 
 // 开始计时
 function startTimer() {
-    // 新增：恢复图标
     if (window.electronAPI) window.electronAPI.setTrayAlert(false);
     if (!isPaused) {
-        // 从设定的时间开始
         remainingSeconds = totalSeconds;
     }
-    
+
     timer = setInterval(() => {
         remainingSeconds--;
         updateDisplay();
-        
+
         if (remainingSeconds > 0) {
             playTick();
         }
-        
+
         if (remainingSeconds <= 0) {
             clearInterval(timer);
-            
-            // 1. 优先同步状态到主进程 (红点图标)
+            console.log('⏰ 计时完成！window.electronAPI:', window.electronAPI ? '存在' : '不存在');
+
             if (window.electronAPI) {
                 window.electronAPI.setTrayAlert(true);
+                console.log('✅ 设置红点图标成功');
+
+                const title = isWorking ? '🍅 专注结束' : '☕ 休息结束';
+                const message = isWorking ? '专注时间结束！休息一下吧。' : '休息结束！回到专注状态。';
+
+                console.log('📢 发送通知:', { title, message });
+                // 触发通知
+                window.electronAPI.triggerCompletionNotification({
+                    title: title,
+                    message: message
+                });
+                console.log('✅ IPC 通知已发送');
+            } else {
+                console.error('❌ window.electronAPI 未定义');
             }
-            
+
             playCompletion();
             remainingSeconds = 0;
             updateDisplay();
-            
-            // 2. 使用 setTimeout 稍微延迟 alert，避免阻塞 IPC 通信
-            setTimeout(() => {
-                alert(isWorking ? '专注时间结束！休息一下吧。' : '休息结束！回到专注状态。');
-            }, 100);
         }
     }, 1000);
-    
+
+    // 【修复】将 'arg' 改为 'none'，否则按钮不会消失
     startBtn.style.display = 'none';
     pauseBtn.style.display = 'block';
     isPaused = false;

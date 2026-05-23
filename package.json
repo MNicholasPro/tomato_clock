@@ -1,19 +1,29 @@
 {
-  "name": "tomato_clock",
+  "name": "tomato-clock",
   "version": "1.0.1",
+  "description": "专业番茄时钟 - macOS 状态栏应用",
+  "author": "TomatoClock",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder"
   },
   "build": {
-    "appId": "com.tomato_clock.app",
+    "appId": "com.tomato-clock.app",
+    "productName": "TomatoClock",
     "mac": {
       "category": "public.app-category.utilities",
       "target": [
         "dmg"
       ],
-      "icon": "assets/icon.icns"
+      "icon": "assets/icon.icns",
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "extendInfo": {
+        "NSUserNotificationAlertStyle": "alert",
+        "NSRequiresIPhoneOS": false,
+        "NSHumanReadableCopyright": "© 2024 TomatoClock. All rights reserved."
+      }
     },
     "dmg": {
       "contents": [

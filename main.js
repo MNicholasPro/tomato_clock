@@ -1,12 +1,18 @@
 const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, ipcMain } = require('electron');
+const { exec } = require('child_process');
 const path = require('path');
 
-// 1. 必须在 app ready 之前设置，尤其是在打包后
-app.setAppUserModelId('com.tomato_clock.app'); 
+// 1. 仅在 Windows 上设置应用 ID，macOS 使用 Bundle ID（在 package.json 中配置）
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.tomato_clock.app');
+} else if (process.platform === 'darwin') {
+  app.setName('TomatoClock');
+}
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false; // 标记是否主动退出应用，避免销毁后操作tray
+let notification = null; // 保持通知对象引用，防止被垃圾回收
 
 function createWindow() {
   // 防止重复创建窗口
@@ -49,45 +55,93 @@ function checkNotificationPermission() {
   return 'unknown';
 }
 
-function sendNotification() {
+function sendNotification(title, bodyText) {
   try {
-    console.log('开始发送通知');
-    if (!Notification.isSupported()) {
-      console.error('当前系统不支持通知功能');
-      return;
-    }
-    const perm = checkNotificationPermission();
-    if (perm === 'denied' || perm === 'unknown') {
-      console.error('通知权限被拒绝，请手动开启');
-      return;
-    }
-    if (perm === 'default') {
-      console.log('首次请求通知权限...');
-    }
-    console.log('通知权限检测：', Notification.permission);
+    console.log('\n========== 开始发送通知 ==========');
+    console.log('标题:', title);
+    console.log('内容:', bodyText);
+    console.log('当前平台:', process.platform);
 
-    const notification = new Notification({
-      title: '应用通知',
-      body: '这是一条来自 Mac 状态栏应用的系统消息！',
-      silent: false, 
-    });
-    
-    notification.on('click', () => {
-      console.log('通知被点击了');
-      if (mainWindow) { // 先检查窗口引用是否存在
-        mainWindow.show();
+    if (Notification.isSupported()) {
+      console.log('✅ Notification 支持，使用原生通知');
+      console.log('Notification.permission:', Notification.permission);
+
+      if (Notification.permission === 'granted') {
+        doShowNotification(title, bodyText);
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission((result) => {
+          console.log('权限请求结果:', result);
+          if (result === 'granted') {
+            doShowNotification(title, bodyText);
+          } else {
+            console.error('❌ 通知权限被拒绝');
+            fallbackToOsascript(title, bodyText);
+          }
+        });
       } else {
-        createWindow(); // 窗口销毁后重新创建
-        mainWindow.show();
+        console.error('❌ 通知权限已被拒绝');
+        fallbackToOsascript(title, bodyText);
       }
-    });
-
-    notification.show();
-    console.log('通知已成功发送');
+    } else {
+      fallbackToOsascript(title, bodyText);
+    }
+    console.log('========== 通知发送完成 ==========\n');
   } catch (err) {
-    console.error('发送通知失败:', err);
+    console.error('❌ 发送通知异常:', err);
+    fallbackToOsascript(title, bodyText);
   }
 }
+
+function fallbackToOsascript(title, bodyText) {
+  if (process.platform === 'darwin') {
+    try {
+      console.log('📢 fallback: 使用 macOS osascript 发送通知...');
+      const appleScript = `display notification "${bodyText}" with title "${title}"`;
+      const child = exec(`osascript -e '${appleScript}'`);
+      child.on('close', (code) => {
+        if (code === 0) {
+          console.log('✅ macOS 系统通知已发送成功');
+        } else {
+          console.error('❌ osascript 通知发送失败，退出码:', code);
+          shell.beep();
+        }
+      });
+    } catch (err) {
+      console.error('❌ fallback 通知发送异常:', err.message);
+      shell.beep();
+    }
+  }
+}
+
+function doShowNotification(title, bodyText) {
+  notification = new Notification({
+    title: title || '应用通知',
+    body: bodyText || '这是一条来自应用的系统消息！',
+    silent: false
+  });
+
+  notification.on('click', () => {
+    console.log('📍 通知被点击');
+    if (mainWindow) {
+      mainWindow.show();
+    }
+  });
+
+  notification.show();
+  console.log('✅ 原生通知已显示');
+}
+
+// 【确保此处的字符串与 preload.js 中的 send 参数一致】
+ipcMain.on('trigger-completion-notification', (event, data) => {
+  console.log('\n📨 【IPC】收到 trigger-completion-notification 消息');
+  console.log('数据:', data);
+  if (data && data.title && data.message) {
+    sendNotification(data.title, data.message);
+  } else {
+    console.error('❌ 数据格式错误:', data);
+  }
+});
+
 
 function createTray() {
   // 防止重复创建tray
@@ -191,11 +245,13 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
 
-  // 检查通知权限（移到whenReady中，避免重复监听ready事件）
+  // 检查通知功能
+  console.log('Notification.isSupported():', Notification.isSupported());
+  console.log('Notification.permission:', Notification.permission);
   if (Notification.isSupported()) {
-    console.log('通知功能可用');
+    console.log('通知功能支持');
   } else {
-    console.log('通知功能不可用');
+    console.warn('当前系统不支持原生通知');
   }
 });
 
