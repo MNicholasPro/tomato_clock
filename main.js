@@ -26,20 +26,19 @@ function createWindow() {
       contextIsolation: true 
     }
   });
+  
+  // 确保窗口创建成功后再设置事件监听器
   mainWindow.loadFile('index.html');
   
-  // 隐藏窗口但保持运行
-//   mainWindow.hide();
-
-  // 优化窗口关闭逻辑：macOS下关闭窗口仅隐藏，不销毁
+  // 窗口关闭事件处理（统一处理所有平台）
   mainWindow.on('close', (e) => {
-    if (!isQuitting && process.platform === 'darwin') {
-      e.preventDefault(); // 阻止窗口销毁
-      mainWindow.hide(); // 仅隐藏窗口
+    if (!isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
     }
   });
 
-  // 窗口销毁时清空引用，避免访问已销毁对象
+  // 窗口销毁时清空引用
   mainWindow.on('destroyed', () => {
     mainWindow = null;
   });
@@ -322,48 +321,80 @@ function createTray() {
     }
   });
 
-  const contextMenu = Menu.buildFromTemplate([
-    { 
-      label: '显示应用', 
-      click: () => { 
-        if (mainWindow) {
-          mainWindow.show();
-        } else {
-          createWindow();
-          mainWindow.show();
-        }
-      } 
-    },
-    { 
-      label: '发送测试通知', 
-      click: () => { 
-        console.log('执行通知点击事件');
-        sendNotification(); 
-      } 
-    },
-    { type: 'separator' },
-    { 
-      label: '退出', 
-      click: () => { 
-        isQuitting = true; // 标记为主动退出
-        app.quit(); // 确保完全退出应用
-      } 
-    }
-  ]);
+  // const contextMenu = Menu.buildFromTemplate([
+  //   { 
+  //     label: '显示应用', 
+  //     click: () => { 
+  //       if (mainWindow) {
+  //         mainWindow.show();
+  //       } else {
+  //         createWindow();
+  //         mainWindow.show();
+  //       }
+  //     } 
+  //   },
+  //   { 
+  //     label: '发送测试通知', 
+  //     click: () => { 
+  //       console.log('执行通知点击事件');
+  //       sendNotification(); 
+  //     } 
+  //   },
+  //   { type: 'separator' },
+  //   { 
+  //     label: '退出', 
+  //     click: () => { 
+  //       isQuitting = true; // 标记为主动退出
+  //       app.quit(); // 确保完全退出应用
+  //     } 
+  //   }
+  // ]);
 
   tray.setToolTip('我的应用');
-  tray.setContextMenu(contextMenu);
+  // 修改 main.js 约 373 行开始的部分
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { 
+        label: '显示 / 隐藏', 
+        click: () => {
+          // ✅ 将 win 修改为 mainWindow
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+          } else {
+            createWindow();
+            if (mainWindow) mainWindow.show();
+          }
+        } 
+      },
+      { 
+        label: '退出', 
+        click: () => {
+          isQuitting = true; 
+          app.quit();
+        } 
+      }
+    ])
+  );
   
   // 添加 tray 点击事件的监听（核心修复：先检查tray和窗口是否存在）
   tray.on('click', () => {
-    // 防止tray已销毁后触发事件
     if (!tray) return;
     console.log('Tray 被点击');
-    if (mainWindow) {
+    
+    // ✅ 更加安全的检查
+    if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
     } else {
+      console.log('窗口已销毁或不存在，重新创建...');
+      // 先清空引用，避免重复创建
+      if (mainWindow) {
+        mainWindow = null;
+      }
       createWindow();
-      mainWindow.show();
+      // 确保创建成功后再显示
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show();
+      }
     }
   });
 }
@@ -403,11 +434,11 @@ function requestNotificationPermission() {
 
 // 所有窗口关闭时的逻辑（优化macOS行为）
 app.on('window-all-closed', () => {
-  // macOS下保持应用运行，其他平台退出
-  if (process.platform !== 'darwin') {
-    isQuitting = true;
+ // 只有在明确要退出时，或者在非 macOS 平台且你确实想让它随窗口关闭而退出时才调用
+  if (process.platform !== 'darwin' && isQuitting) {
     app.quit();
   }
+  // 如果是 Windows 且 isQuitting 为 false，这里不执行 app.quit()，程序就会在后台运行
 });
 
 // 应用激活事件（macOS Dock点击）

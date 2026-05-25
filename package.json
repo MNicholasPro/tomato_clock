@@ -7,11 +7,11 @@
     "build": "electron-builder"
   },
   "dependencies": {
-    "electron-store": "^8.0.0"
+    "electron-store": "latest"
   },
   "devDependencies": {
-    "electron": "^26.0.0",
-    "electron-builder": "^24.0.0"
+    "electron": "latest ",
+    "electron-builder": "latest "
   },
   "build": {
     "appId": "com.aiassistant.tomatoclock",
