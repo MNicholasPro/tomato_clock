@@ -12,6 +12,7 @@ const statusDot = document.getElementById('status-dot');
 const progressBar = document.getElementById('progress-bar');
 const body = document.body;
 const timeModeBtn = document.getElementById('time-mode-btn');
+const themeToggleBtn = document.getElementById('theme-toggle');
 
 let timer = null;
 // 从本地存储读取保存的时间，如果没有则默认 25*60
@@ -283,5 +284,35 @@ timeModeBtn.addEventListener('click', () => {
     }
 });
 
+// 主题管理
+function setTheme(theme) {
+    if (theme === 'dark') {
+        body.setAttribute('data-theme', 'dark');
+        themeToggleBtn.textContent = '☀️';
+    } else {
+        body.removeAttribute('data-theme');
+        themeToggleBtn.textContent = '🌙';
+    }
+    localStorage.setItem('theme', theme);
+}
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        setTheme(savedTheme);
+    } else {
+        // 跟随系统
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setTheme(prefersDark ? 'dark' : 'light');
+    }
+}
+
+themeToggleBtn.addEventListener('click', () => {
+    const currentTheme = body.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+});
+
+// 初始化
+initTheme();
 // 初始化
 updateDisplay();

@@ -5,6 +5,15 @@
     --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
     --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    --body-bg: var(--gradient-primary);
+}
+
+[data-theme="dark"] {
+    --primary-color: #e0e0e0;
+    --glass-bg: rgba(0, 0, 0, 0.4);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+    --body-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
 }
 
 * {
@@ -20,10 +29,14 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--body-bg);
     transition: background 0.5s ease;
     overflow: hidden;
     color: white;
+}
+
+body.rest-mode {
+    background: var(--bg-rest);
 }
 
 .container {
@@ -52,6 +65,32 @@ header {
     border-bottom: 1px solid rgba(255,255,255,0.1);
     padding-bottom: 12px;
     flex-shrink: 0;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.theme-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.theme-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
 }
 
 h1 {
